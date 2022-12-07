@@ -66,12 +66,12 @@ public class MipsResolver {
             boolean mayChangeDestiny = instructionType == InstructionType.rType ||
                     instructionType == InstructionType.load || instructionType == InstructionType.store;
             if (mayChangeDestiny && !instruction.equals(nop) && !instruction.equals(syscall)) {
-                checkAndInsertNopAfter(bitInstructionArray, i);
+                checkAndInsertBlockAfter(bitInstructionArray, i);
             }
         }
     }
 
-    private void checkAndInsertNopAfter(List<String> bitInstructionArray, int index) {
+    private void checkAndInsertBlockAfter(List<String> bitInstructionArray, int index) {
         String instruction = bitInstructionArray.get(index);
         String opcode = instruction.substring(0, 6);
         InstructionType instructionType = instructionTypes.get(opcode);
@@ -87,8 +87,45 @@ public class MipsResolver {
             String nrs = nInstruction.substring(6, 11);
             String nrt = nInstruction.substring(11, 16);
             if (nrs.equals(destinyRegister) || nrt.equals(destinyRegister)) {
-                bitInstructionArray.add(index + i, nop);
+                if (!checkAndPullInstructions(bitInstructionArray, index + i)) {
+                    bitInstructionArray.add(index + i, nop);
+                }
             }
         }
+    }
+
+    private boolean checkAndPullInstructions(List<String> bitInstructionArray, int index) {
+        String oInstruction = bitInstructionArray.get(index - 1);
+        String oOpcode = oInstruction.substring(0, 6);
+        InstructionType oInstructionType = instructionTypes.get(oOpcode);
+        String oRs = oInstruction.substring(6, 11);
+        String oRt = oInstruction.substring(11, 16);
+        String oDestiny = oInstructionType == InstructionType.rType ? oInstruction.substring(16, 21) : oRt;
+        for (int i = index; i < bitInstructionArray.size(); i++) {
+            String instruction = bitInstructionArray.get(i);
+            String opcode = instruction.substring(0, 6);
+            InstructionType instructionType = instructionTypes.get(opcode);
+            if (instructionType == InstructionType.jump || instructionType == InstructionType.branch) break;
+            String rs = instruction.substring(6, 11);
+            String rt = instruction.substring(11, 16);
+            String destiny = instructionType == InstructionType.rType ? instruction.substring(16, 21) : rt;
+            for (int j = index; j < i; j++) {
+                String nInstruction = bitInstructionArray.get(j);
+                String nOpcode = nInstruction.substring(0, 6);
+                InstructionType nInstructionType = instructionTypes.get(nOpcode);
+                if (nInstructionType == InstructionType.jump || nInstructionType == InstructionType.branch) break;
+                String nRs = nInstruction.substring(6, 11);
+                String nRt = nInstruction.substring(11, 16);
+                String nDestiny = nInstructionType == InstructionType.rType ? nInstruction.substring(16, 21) : nRt;
+                if (!nDestiny.equals(destiny) && !rs.equals(nDestiny) && !rt.equals(nDestiny) && !nRs.equals(destiny) && !nRt.equals(destiny) && !nRs.equals(oDestiny) && !nRt.equals(oDestiny)) {
+                    bitInstructionArray.add(index, bitInstructionArray.remove(i));
+                    if (i == index + 1) {
+                        bitInstructionArray.add(index, nop);
+                    }
+                    return true;
+                }
+            }
+        }
+        return false;
     }
 }
